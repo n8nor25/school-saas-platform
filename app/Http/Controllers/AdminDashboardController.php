@@ -2,232 +2,635 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Result;
+use App\Models\StudentScore;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class AdminDashboardController extends Controller
 {
-    public function index(Request $request, $tenant)
+    private array $totalSubjects = ['arabic', 'english', 'social_studies', 'algebra', 'geometry', 'science'];
+
+    private array $arabicToEnglish = [
+        'رقم الجلوس'     => 'seatNumber',
+        'جلوس'           => 'seatNumber',
+        'seat number'     => 'seatNumber',
+        'seat'            => 'seatNumber',
+        'E'               => 'seatNumber',
+
+        'اسم الطالب'     => 'studentName',
+        'اسم الطال'      => 'studentName',
+        'الطالب'         => 'studentName',
+        'الاسم'          => 'studentName',
+        'اسم'            => 'studentName',
+        'student name'   => 'studentName',
+        'اسم الطالب '    => 'studentName',
+
+        'اللغة العربية'  => 'arabic',
+        'لغة عربية'      => 'arabic',
+        'عربي'           => 'arabic',
+        'العربية'        => 'arabic',
+        'اللغه العربية'  => 'arabic',
+        'لغه عربية'      => 'arabic',
+        'لغة العربية'    => 'arabic',
+        'لغه العربيه'    => 'arabic',
+        'اللغة العربيه'  => 'arabic',
+        'arabic'         => 'arabic',
+
+        'اللغة الانجليزية'    => 'english',
+        'اللغة الإنجليزية'    => 'english',
+        'لغة انجليزية'        => 'english',
+        'لغة إنجليزية'        => 'english',
+        'انجليزي'             => 'english',
+        'إنجليزي'             => 'english',
+        'اللغه الانجليزيه'    => 'english',
+        'اللغه الإنجليزيه'    => 'english',
+        'لغه انجليزيه'        => 'english',
+        'english'              => 'english',
+        'اللغة الإنجليزية'     => 'english',
+        'اللغه الانجليزية'     => 'english',
+
+        'الدراسات الاجتماعية'   => 'social_studies',
+        'دراسات اجتماعية'       => 'social_studies',
+        'اجتماعيات'             => 'social_studies',
+        'الدراسات'              => 'social_studies',
+        'دراسات'                => 'social_studies',
+        'الدراسات الاجتماعيه'   => 'social_studies',
+        'social studies'        => 'social_studies',
+
+        'الجبر'           => 'algebra',
+        'جبر'             => 'algebra',
+        'الجبر والاحصاء'  => 'algebra',
+        'algebra'         => 'algebra',
+
+        'الهندسة'         => 'geometry',
+        'هندسة'           => 'geometry',
+        'الهندسه'         => 'geometry',
+        'geometry'        => 'geometry',
+
+        'الرياضيات'       => 'math',
+        'رياضيات'         => 'math',
+        'الرياضه'         => 'math',
+        'الرياضة'         => 'math',
+        'math'            => 'math',
+
+        'العلوم'          => 'science',
+        'علوم'            => 'science',
+        'العوم'           => 'science',
+        'science'         => 'science',
+
+        'التربية الدينية'           => 'religion',
+        'تربية دينية'               => 'religion',
+        'دين'                       => 'religion',
+        'الدين'                     => 'religion',
+        'التربيه الدينيه'           => 'religion',
+        'التربية الدينية الإسلامية' => 'religion',
+        'religion'                  => 'religion',
+
+        'التربية الفنية'       => 'art',
+        'تربية فنية'           => 'art',
+        'فنية'                 => 'art',
+        'الفنية'               => 'art',
+        'التربيه الفنيه'       => 'art',
+        'art'                  => 'art',
+        'فنون'                 => 'art',
+
+        'الحاسب الآلي'         => 'computer',
+        'حاسب آلي'             => 'computer',
+        'حاسب'                 => 'computer',
+        'الحاسب'               => 'computer',
+        'computer'             => 'computer',
+        'كمبيوتر'              => 'computer',
+        'تكنولوجيا المعلومات'  => 'computer',
+    ];
+
+    private function mapColumnName(string $rawName): ?string
     {
-        if (function_exists('tenancy')) {
-            tenancy()->initialize($tenant);
+        $clean = trim($rawName);
+        if ($clean === '') return null;
+
+        if (isset($this->arabicToEnglish[$clean])) return $this->arabicToEnglish[$clean];
+
+        $lower = mb_strtolower($clean, 'UTF-8');
+        foreach ($this->arabicToEnglish as $arabic => $english) {
+            if (mb_strtolower($arabic, 'UTF-8') === $lower) return $english;
         }
 
-        $adminUser = ['id' => 'u_main', 'username' => 'محروس شعبان', 'role' => 'super_admin', 'schoolId' => 'school1'];
-        $currentView = $request->query('view', 'dashboard');
-        $showArchived = $request->query('archived', 'false') === 'true';
-        $filterCategory = $request->query('filter_category', 'all');
+        $withoutAl = $clean;
+        if (mb_substr($clean, 0, 2, 'UTF-8') === 'ال') {
+            $withoutAl = mb_substr($clean, 2, null, 'UTF-8');
+        }
+        if ($withoutAl !== $clean && isset($this->arabicToEnglish[$withoutAl])) return $this->arabicToEnglish[$withoutAl];
 
-        // مصفوفة مطابقة وترجمة الصفوف والتروم الموحدة بنسبة 100% مع الـ Blade
-        $gradeMapping = [
-            'grade_1' => 'الصف الأول الإعدادي', 'grade_2' => 'الصف الثاني الإعدادي', 'grade_3' => 'الصف الثالث الإعدادي',
-            'first_prep' => 'الصف الأول الإعدادي', 'second_prep' => 'الصف الثاني الإعدادي', 'third_prep' => 'الصف الثالث الإعدادي',
-            'الصف الأول الإعدادي' => 'grade_1', 'الصف الثاني الإعدادي' => 'grade_2', 'الصف الثالث الإعدادي' => 'grade_3'
+        $normalized = str_replace(['ى', 'ة'], ['ي', 'ه'], $clean);
+        if (isset($this->arabicToEnglish[$normalized])) return $this->arabicToEnglish[$normalized];
+
+        $normalizedWithoutAl = $normalized;
+        if (mb_substr($normalized, 0, 2, 'UTF-8') === 'ال') {
+            $normalizedWithoutAl = mb_substr($normalized, 2, null, 'UTF-8');
+        }
+        if ($normalizedWithoutAl !== $normalized && isset($this->arabicToEnglish[$normalizedWithoutAl])) return $this->arabicToEnglish[$normalizedWithoutAl];
+
+        $normalizedLower = mb_strtolower($normalized, 'UTF-8');
+        foreach ($this->arabicToEnglish as $arabic => $english) {
+            $dictNormalized = str_replace(['ى', 'ة'], ['ي', 'ه'], $arabic);
+            if (mb_strtolower($dictNormalized, 'UTF-8') === $normalizedLower) return $english;
+        }
+
+        Log::warning("mapColumnName: لا يوجد تطابق للعمود: '{$rawName}'");
+        return null;
+    }
+
+    private function trimArrayKeys(array $array): array
+    {
+        $result = [];
+        foreach ($array as $key => $value) {
+            $trimmedKey = trim((string)$key);
+            $result[$trimmedKey] = is_array($value) ? $this->trimArrayKeys($value) : $value;
+        }
+        return $result;
+    }
+
+    private function trimArrayKeysBatch(array $data): array
+    {
+        return array_map(fn($row) => $this->trimArrayKeys($row), $data);
+    }
+
+    /**
+     * تحويل قيمة إلى رقم عشري آمن
+     */
+    private function toDecimal($value, float $default = 0): float
+    {
+        if ($value === null || $value === '') return $default;
+        if (!is_numeric($value)) return $default;
+        return round((float)$value, 1);
+    }
+
+    private function normalizeStudents(array $students, ?string $sheetName = null): array
+    {
+        $normalized = [];
+        foreach ($students as $student) {
+            $row = [];
+
+            foreach ($student as $key => $value) {
+                $trimmedKey = trim((string)$key);
+                $englishKey = $this->mapColumnName($trimmedKey);
+                if ($englishKey !== null && !isset($row[$englishKey])) {
+                    $row[$englishKey] = $value;
+                }
+            }
+
+            // رياضيات = جبر + هندسة
+            if (!isset($row['math']) || $row['math'] === '' || $row['math'] === null) {
+                $algebra = $this->toDecimal($row['algebra'] ?? 0);
+                $geometry = $this->toDecimal($row['geometry'] ?? 0);
+                $row['math'] = $algebra + $geometry;
+            } else {
+                if (!isset($row['algebra']) && !isset($row['geometry'])) {
+                    $row['algebra'] = 0;
+                    $row['geometry'] = $this->toDecimal($row['math']);
+                }
+            }
+
+            $row['seatNumber'] = trim((string)($row['seatNumber'] ?? ''));
+            $row['studentName'] = trim((string)($row['studentName'] ?? ''));
+
+            // حساب المجموع
+            $total = 0;
+            foreach ($this->totalSubjects as $subject) {
+                $total += $this->toDecimal($row[$subject] ?? 0);
+            }
+            $row['total'] = $total;
+
+            if ($sheetName && empty($row['sheet_name'])) {
+                $row['sheet_name'] = trim($sheetName);
+            }
+
+            $normalized[] = $row;
+        }
+        return $normalized;
+    }
+
+    private function parseJsonData($file): array
+    {
+        $content = file_get_contents($file->getRealPath());
+        $content = trim($content);
+
+        if (!str_starts_with($content, '[') && !str_starts_with($content, '{')) $content = '[' . $content;
+        if (!str_ends_with($content, ']') && !str_ends_with($content, '}')) $content = $content . ']';
+        if (str_starts_with($content, '{') && str_ends_with($content, '}')) $content = '[' . $content . ']';
+
+        $data = json_decode($content, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $content = preg_replace('/,\s*([}\]])/', '$1', $content);
+            $data = json_decode($content, true);
+        }
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::error('خطأ تحليل JSON: ' . json_last_error_msg());
+            return [];
+        }
+
+        $students = [];
+        foreach ($data as $item) {
+            if (isset($item['نتيجة الطالب']) && is_array($item['نتيجة الطالب'])) {
+                foreach ($item['نتيجة الطالب'] as $student) $students[] = $student;
+            } elseif (isset($item['students']) && is_array($item['students'])) {
+                foreach ($item['students'] as $student) $students[] = $student;
+            } elseif (isset($item['data']) && is_array($item['data'])) {
+                foreach ($item['data'] as $student) $students[] = $student;
+            } else {
+                $students[] = $item;
+            }
+        }
+
+        return $this->trimArrayKeysBatch($students);
+    }
+
+    private function parseExcelFile($file): array
+    {
+        $spreadsheet = IOFactory::load($file->getRealPath());
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheetName = $sheet->getTitle();
+        $rows = $sheet->toArray(null, true, true, true);
+        if (count($rows) < 2) return [];
+
+        $row1 = array_values($rows[1] ?? []);
+        $row2 = array_values($rows[2] ?? []);
+
+        $row2IsHeader = false;
+        $numericCount = 0;
+        foreach ($row2 as $cell) { if (is_numeric($cell)) $numericCount++; }
+        if ($numericCount <= 1 && count($row2) > 3) $row2IsHeader = true;
+
+        $headers = [];
+        $dataStartRow = 2;
+
+        if ($row2IsHeader) {
+            for ($i = 0; $i < count($row1); $i++) {
+                $h1 = trim((string)($row1[$i] ?? ''));
+                $h2 = trim((string)($row2[$i] ?? ''));
+                $combined = $h1 . ($h1 && $h2 ? ' ' : '') . $h2;
+                $headers[] = $this->mapHeaderToField($h1, $h2, $combined);
+            }
+            $dataStartRow = 3;
+        } else {
+            for ($i = 0; $i < count($row1); $i++) {
+                $h = trim((string)($row1[$i] ?? ''));
+                $headers[] = $this->mapHeaderToField($h, '', $h);
+            }
+            $dataStartRow = 2;
+        }
+
+        $students = [];
+        for ($r = $dataStartRow; $r <= count($rows); $r++) {
+            $row = array_values($rows[$r] ?? []);
+            if (empty($row) || count(array_filter($row)) === 0) continue;
+
+            $student = [];
+            $hasData = false;
+            for ($c = 0; $c < count($headers); $c++) {
+                $field = $headers[$c];
+                $value = $row[$c] ?? null;
+                if ($value !== null && $value !== '') {
+                    $student[$field] = $value;
+                    $hasData = true;
+                }
+            }
+            if ($hasData) $students[] = $student;
+        }
+
+        return $this->normalizeStudents($students, $sheetName);
+    }
+
+    private function mapHeaderToField(string $header1, string $header2, string $combined): string
+    {
+        foreach ([$header1, $header2, $combined] as $h) {
+            if (preg_match('/جلوس|seat/i', $h)) return 'seatNumber';
+            if (preg_match('/اسم|طالب|name/i', $h)) return 'studentName';
+        }
+        foreach ([$combined, $header1, $header2] as $h) {
+            if (empty(trim($h))) continue;
+            $mapped = $this->mapColumnName($h);
+            if ($mapped !== null) return $mapped;
+        }
+        return preg_replace('/[^a-zA-Z0-9_]/', '_', trim($combined)) ?: 'col_' . crc32($combined);
+    }
+
+    private function calculateTotal(array $data): float
+    {
+        $total = 0;
+        foreach ($this->totalSubjects as $subject) {
+            $total += $this->toDecimal($data[$subject] ?? 0);
+        }
+        return $total;
+    }
+
+    // ============================================================
+    // الدوال الرئيسية
+    // ============================================================
+
+    public function index(Request $request)
+    {
+        $tenant = $request->route('tenant');
+        $view = $request->query('view', 'dashboard');
+
+        $adminUser = null;
+        if (Auth::check()) {
+            $adminUser = Auth::user();
+        } elseif ($request->session()->has('admin_user')) {
+            $adminUser = $request->session()->get('admin_user');
+        }
+
+        $stats = [
+            'totalResults' => Result::count(),
+            'totalStudents' => StudentScore::count(),
+            'activeResults' => Result::where('archived', false)->count(),
+            'archivedResults' => Result::where('archived', true)->count(),
+            'newsCount' => 0,
+            'galleryCount' => 0,
+            'teachersCount' => 0,
+            'resultsCount' => Result::where('archived', false)->count(),
         ];
 
-        $schools = $request->session()->get('schools_db', [['id' => 'school1', 'name' => 'مدرسة الأجاويد الحديثة', 'subdomain' => 'school1', 'primaryColor' => '#610000', 'isActive' => true]]);
-        $users = $request->session()->get('users_db', [['id' => 'usr_1', 'username' => 'محروس شعبان', 'role' => 'super_admin']]);
-        $grades = $request->session()->get('grades_json_db', [['id' => 'g1', 'name' => 'grade_1'], ['id' => 'g2', 'name' => 'grade_2'], ['id' => 'g3', 'name' => 'grade_3']]);
+        $resultGroups = Result::orderBy('grade_name')->orderBy('term')->get();
 
-        $allResults = $request->session()->get('results_db', []);
-        $allNews = $request->session()->get('news_db', []); $allSliders = $request->session()->get('sliders_db', []);
-        $allTeachers = $request->session()->get('teachers_db', []); $allGallery = $request->session()->get('gallery_db', []);
-        $allSchedules = $request->session()->get('schedules_db', []); $toggles = $request->session()->get('toggles_db', []);
+        return view('admin.layout', compact('tenant', 'view', 'adminUser', 'stats', 'resultGroups'));
+    }
 
-        $action = $request->input('action');
+    public function uploadResults(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv,json,txt|max:10240',
+            'grade_name' => 'required|string',
+            'term' => 'required|string',
+        ]);
 
-        // [تعديل الأسطر الحية مؤقتاً بالـ Session]
-        if ($action === 'update_inline_student') {
-            $sheets = $request->session()->get('live_multi_sheets', []);
-            $targetSheet = $request->input('sheet_name');
-            $seat = $request->input('seatNumber');
+        try {
+            $file = $request->file('file');
+            $gradeName = $request->input('grade_name');
+            $term = $request->input('term');
+            $extension = strtolower($file->getClientOriginalExtension());
 
-            if (isset($sheets[$targetSheet])) {
-                foreach ($sheets[$targetSheet] as &$student) {
-                    if ($student['seatNumber'] == $seat) {
-                        $student['studentName']   = $request->input('studentName');
-                        $student['arabic']        = floatval($request->input('arabic', 0));
-                        $student['english']       = floatval($request->input('english', 0));
-                        $student['socialStudies'] = floatval($request->input('socialStudies', 0));
-                        $student['math']          = floatval($request->input('math', 0));
-                        $student['science']       = floatval($request->input('science', 0));
-                        $student['religion']      = floatval($request->input('religion', 0));
-                        $student['art']           = floatval($request->input('art', 0));
-                        $student['computer']      = floatval($request->input('computer', 0));
-                        $student['total']         = floatval($request->input('total', 0));
-                        break;
-                    }
-                }
-                $request->session()->put('live_multi_sheets', $sheets);
+            if ($extension === 'json' || $extension === 'txt') {
+                $rawStudents = $this->parseJsonData($file);
+            } else {
+                $rawStudents = $this->parseExcelFile($file);
             }
-            $request->session()->flash('preview_grade', $request->input('preview_grade'));
-            $request->session()->flash('preview_term', $request->input('preview_term'));
-            return redirect()->to(route('admin.dashboard', ['tenant' => $tenant])."?view=results");
+
+            if (empty($rawStudents)) {
+                return back()->with('error', 'لم يتم العثور على بيانات في الملف');
+            }
+
+            $students = $this->normalizeStudents($rawStudents);
+
+            session([
+                'preview_students' => $students,
+                'preview_grade_name' => $gradeName,
+                'preview_term' => $term,
+            ]);
+
+            return back()->with('success', 'تم تحميل الملف بنجاح (' . count($students) . ' طالب). راجع البيانات ثم اضغط حفظ الكل.');
+
+        } catch (\Exception $e) {
+            Log::error('خطأ رفع النتائج: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return back()->with('error', 'حدث خطأ أثناء معالجة الملف: ' . $e->getMessage());
+        }
+    }
+
+    public function getPreviewStudents()
+    {
+        return response()->json([
+            'students' => session('preview_students', []),
+            'grade_name' => session('preview_grade_name'),
+            'term' => session('preview_term'),
+        ]);
+    }
+
+    /**
+     * حفظ النتائج - مع تنظيف صارم للبيانات
+     */
+    public function saveResults(Request $request)
+    {
+        $students = session('preview_students', []);
+        $gradeName = session('preview_grade_name');
+        $term = session('preview_term');
+
+        if (empty($students)) {
+            return response()->json(['error' => 'لا توجد بيانات للحفظ'], 400);
         }
 
-        // ====== [المحرك العبقري والديناميكي المحدث الشامل لمنع الاختفاء الصامت] ======
-        if ($action === 'preview_upload') {
-            if (!$request->hasFile('file')) {
-                return back()->withErrors(['error' => 'السيرفر لم يستقبل أي ملف.']);
-            }
+        try {
+            $resultGroup = Result::updateOrCreate(
+                ['grade_name' => $gradeName, 'term' => $term],
+                ['sheet_name' => $students[0]['sheet_name'] ?? null]
+            );
 
-            try {
-                $file = $request->file('file');
-                $filePath = $file->getRealPath();
-                $fileContent = file_get_contents($filePath);
-                
-                $multiSheetsData = [];
-
-                // 1. فحص وقراءة ملف الجيسون الصافي
-                $jsonData = json_decode($fileContent, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) {
-                    if (isset($jsonData['students']) || isset($jsonData[0]['studentName'])) {
-                        $multiSheetsData['كشف جيسون المستخرج'] = $jsonData['students'] ?? $jsonData;
-                    } else {
-                        $multiSheetsData = $jsonData;
-                    }
-                } 
-                // 2. قراءة ملفات الإكسيل بأمان وتجنب عطل الـ Zipmember
-                else {
-                    $reader = IOFactory::createReaderForFile($filePath);
-                    $reader->setReadDataOnly(true);
-                    $spreadsheet = $reader->load($filePath);
-
-                    foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
-                        $sheetTitle = trim($worksheet->getTitle());
-                        $highestRow = $worksheet->getHighestRow();
-                        $highestColumn = $worksheet->getHighestColumn();
-                        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-
-                        $headerMap = [];
-                        for ($col = 1; $col <= $highestColumnIndex; $col++) {
-                            $cellValue = $worksheet->getCell([$col, 1])->getValue();
-                            if (!$cellValue) continue;
-
-                            $headerText = mb_strtolower(trim($cellValue));
-                            $headerText = str_replace([' ', "\r", "\n", "\t"], '', $headerText);
-                            
-                            if (str_contains($headerText, 'جلوس') || str_contains($headerText, 'seat')) { $headerMap['seatNumber'] = $col; }
-                            elseif (str_contains($headerText, 'اسم') || str_contains($headerText, 'name')) { $headerMap['studentName'] = $col; }
-                            elseif (str_contains($headerText, 'عرب') || str_contains($headerText, 'arabic')) { $headerMap['arabic'] = $col; }
-                            elseif (str_contains($headerText, 'انجليز') || str_contains($headerText, 'english') || str_contains($headerText, 'أجنب') || str_contains($headerText, 'eng')) { $headerMap['english'] = $col; }
-                            elseif (str_contains($headerText, 'دراسات') || str_contains($headerText, 'social')) { $headerMap['socialStudies'] = $col; }
-                            elseif (str_contains($headerText, 'رياض') || str_contains($headerText, 'math')) { $headerMap['math'] = $col; }
-                            elseif (str_contains($headerText, 'علوم') || str_contains($headerText, 'science')) { $headerMap['science'] = $col; }
-                            elseif (str_contains($headerText, 'دين') || str_contains($headerText, 'religion')) { $headerMap['religion'] = $col; }
-                            elseif (str_contains($headerText, 'فني') || str_contains($headerText, 'رسم') || str_contains($headerText, 'art')) { $headerMap['art'] = $col; }
-                            elseif (str_contains($headerText, 'حاسب') || str_contains($headerText, 'كمبيوتر') || str_contains($headerText, 'computer')) { $headerMap['computer'] = $col; }
-                            elseif (str_contains($headerText, 'مجموع') || str_contains($headerText, 'total')) { $headerMap['total'] = $col; }
-                        }
-
-                        $colSeat = $headerMap['seatNumber'] ?? 1;
-                        $colName = $headerMap['studentName'] ?? 2;
-
-                        for ($row = 2; $row <= $highestRow; $row++) {
-                            $seatNumber = trim($worksheet->getCell([$colSeat, $row])->getFormattedValue());
-                            $studentName = trim($worksheet->getCell([$colName, $row])->getFormattedValue());
-                            
-                            if (empty($seatNumber) && empty($studentName)) continue;
-
-                            $arabic = isset($headerMap['arabic']) ? floatval($worksheet->getCell([$headerMap['arabic'], $row])->getValue()) : 0;
-                            $english = isset($headerMap['english']) ? floatval($worksheet->getCell([$headerMap['english'], $row])->getValue()) : 0;
-                            $social = isset($headerMap['socialStudies']) ? floatval($worksheet->getCell([$headerMap['socialStudies'], $row])->getValue()) : 0;
-                            $math = isset($headerMap['math']) ? floatval($worksheet->getCell([$headerMap['math'], $row])->getValue()) : 0;
-                            $science = isset($headerMap['science']) ? floatval($worksheet->getCell([$headerMap['science'], $row])->getValue()) : 0;
-                            
-                            $excelTotal = isset($headerMap['total']) ? $worksheet->getCell([$headerMap['total'], $row])->getValue() : null;
-                            $finalTotal = is_numeric($excelTotal) ? floatval($excelTotal) : ($arabic + $english + $social + $math + $science);
-
-                            $multiSheetsData[$sheetTitle][] = [
-                                'seatNumber'    => $seatNumber,
-                                'studentName'   => $studentName,
-                                'arabic'        => $arabic,
-                                'english'       => $english,
-                                'socialStudies' => $social,
-                                'math'          => $math,
-                                'science'       => $science,
-                                'religion'      => isset($headerMap['religion']) ? floatval($worksheet->getCell([$headerMap['religion'], $row])->getValue()) : 0,
-                                'art'           => isset($headerMap['art']) ? floatval($worksheet->getCell([$headerMap['art'], $row])->getValue()) : 0,
-                                'computer'      => isset($headerMap['computer']) ? floatval($worksheet->getCell([$headerMap['computer'], $row])->getValue()) : 0,
-                                'total'         => $finalTotal,
-                            ];
-                        }
-                    }
+            $saved = 0;
+            foreach ($students as $student) {
+                // تنظيف صارم لكل حقل
+                $seatNumber = trim((string)($student['seatNumber'] ?? ''));
+                $studentName = trim((string)($student['studentName'] ?? ''));
+                $algebra = $this->toDecimal($student['algebra'] ?? 0);
+                $geometry = $this->toDecimal($student['geometry'] ?? 0);
+                $math = $this->toDecimal($student['math'] ?? 0);
+                if ($math == 0 && ($algebra > 0 || $geometry > 0)) {
+                    $math = $algebra + $geometry;
                 }
 
-                // فتح الـ Session وضخ البيانات بنجاح عند انتهاء القراءة
-                if (!empty($multiSheetsData)) {
-                    $request->session()->put('live_multi_sheets', $multiSheetsData);
-                    $request->session()->put('preview_grade', $request->input('gradeName'));
-                    $request->session()->put('preview_term', $request->input('term'));
-                    return redirect()->to(route('admin.dashboard', ['tenant' => $tenant])."?view=results");
-                }
-
-            } catch (\Exception $e) {
-                // [📌 خطة حظر المحلي الصارمة لبيئة العمل] 
-                // إذا رفض خادمك فك الضغط، يتدخل وضع حماية الساس ويقوم بحقن كشف المحاكاة المعتمد بالدرجة 16 الصافية للغة الإنجليزية ورقم الجلوس 49463 لفتح صفحة المعاينة فوراً
-                $backupSheetsData = [
-                    'كشف الصف الثالث الإعدادي (أ)' => [
-                        ['seatNumber' => '49463', 'studentName' => 'محمد عبد العزيز محروس', 'arabic' => 50, 'english' => 16, 'socialStudies' => 38, 'math' => 45, 'science' => 35, 'religion' => 19, 'art' => 18, 'computer' => 19, 'total' => 184]
+                StudentScore::updateOrCreate(
+                    [
+                        'result_id' => $resultGroup->id,
+                        'seat_number' => $seatNumber,
+                    ],
+                    [
+                        'student_name'   => $studentName,
+                        'arabic'         => $this->toDecimal($student['arabic'] ?? 0),
+                        'english'        => $this->toDecimal($student['english'] ?? 0),
+                        'social_studies' => $this->toDecimal($student['social_studies'] ?? 0),
+                        'algebra'        => $algebra,
+                        'geometry'       => $geometry,
+                        'math'           => $math,
+                        'science'        => $this->toDecimal($student['science'] ?? 0),
+                        'religion'       => $this->toDecimal($student['religion'] ?? 0),
+                        'art'            => $this->toDecimal($student['art'] ?? 0),
+                        'computer'       => $this->toDecimal($student['computer'] ?? 0),
+                        'total'          => $this->calculateTotal($student),
                     ]
-                ];
-                $request->session()->put('live_multi_sheets', $backupSheetsData);
-                $request->session()->put('preview_grade', $request->input('gradeName', 'grade_3'));
-                $request->session()->put('preview_term', $request->input('term', 'الفصل الأول'));
-                return redirect()->to(route('admin.dashboard', ['tenant' => $tenant])."?view=results");
+                );
+                $saved++;
             }
+
+            session()->forget(['preview_students', 'preview_grade_name', 'preview_term']);
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم حفظ نتائج {$saved} طالب بنجاح",
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ حفظ النتائج: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json(['error' => 'حدث خطأ أثناء الحفظ: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function updatePreviewStudent(Request $request)
+    {
+        $students = session('preview_students', []);
+        $index = $request->input('index');
+
+        if (!isset($students[$index])) {
+            return response()->json(['error' => 'طالب غير موجود'], 404);
         }
 
-        // [حفظ واعتماد الكشوف الكلية بجدول فلاتر الطلاب والموقع]
-        if ($action === 'save_results') {
-            $sheets = $request->session()->get('live_multi_sheets', []);
-            $currentTerm = $request->input('term');
-            $chosenGradeKey = $request->input('gradeName');
+        $algebra = $this->toDecimal($request->input('algebra', 0));
+        $geometry = $this->toDecimal($request->input('geometry', 0));
+        $math = $algebra + $geometry;
 
-            $finalGradeName = $gradeMapping[$chosenGradeKey] ?? $chosenGradeKey;
-            if (str_contains($finalGradeName, 'grade_')) { $finalGradeName = $gradeMapping[$finalGradeName] ?? $finalGradeName; }
+        $students[$index] = [
+            'seatNumber'     => trim((string)$request->input('seatNumber', '')),
+            'studentName'    => trim((string)$request->input('studentName', '')),
+            'arabic'         => $this->toDecimal($request->input('arabic', 0)),
+            'english'        => $this->toDecimal($request->input('english', 0)),
+            'social_studies' => $this->toDecimal($request->input('social_studies', 0)),
+            'algebra'        => $algebra,
+            'geometry'       => $geometry,
+            'math'           => $math,
+            'science'        => $this->toDecimal($request->input('science', 0)),
+            'religion'       => $this->toDecimal($request->input('religion', 0)),
+            'art'            => $this->toDecimal($request->input('art', 0)),
+            'computer'       => $this->toDecimal($request->input('computer', 0)),
+        ];
+        $students[$index]['total'] = $this->calculateTotal($students[$index]);
 
-            $totalCount = 0; 
-            foreach ($sheets as $title => $list) { $totalCount += count($list); }
+        session(['preview_students' => $students]);
 
-            $allResults[] = [
-                'id' => 'res_' . rand(100,999),
-                'gradeName' => $chosenGradeKey, 
-                'term' => $currentTerm,
-                'studentCount' => $totalCount,
-                'archived' => false,
-                'createdAt' => date('Y-m-d')
+        return response()->json(['success' => true, 'student' => $students[$index]]);
+    }
+
+    public function updateSavedStudent(Request $request, $id)
+    {
+        $score = StudentScore::findOrFail($id);
+
+        $algebra = $this->toDecimal($request->input('algebra', $score->algebra));
+        $geometry = $this->toDecimal($request->input('geometry', $score->geometry));
+        $math = $algebra + $geometry;
+
+        $score->update([
+            'seat_number'     => trim((string)$request->input('seatNumber', $score->seat_number)),
+            'student_name'    => trim((string)$request->input('studentName', $score->student_name)),
+            'arabic'          => $this->toDecimal($request->input('arabic', $score->arabic)),
+            'english'         => $this->toDecimal($request->input('english', $score->english)),
+            'social_studies'  => $this->toDecimal($request->input('social_studies', $score->social_studies)),
+            'algebra'         => $algebra,
+            'geometry'        => $geometry,
+            'math'            => $math,
+            'science'         => $this->toDecimal($request->input('science', $score->science)),
+            'religion'        => $this->toDecimal($request->input('religion', $score->religion)),
+            'art'             => $this->toDecimal($request->input('art', $score->art)),
+            'computer'        => $this->toDecimal($request->input('computer', $score->computer)),
+        ]);
+
+        $score->total = $score->calculateTotal();
+        $score->save();
+
+        return response()->json(['success' => true, 'student' => $score]);
+    }
+
+    public function deleteResult($id)
+    {
+        $score = StudentScore::findOrFail($id);
+        $score->delete();
+        return response()->json(['success' => true]);
+    }
+
+    public function getResults(Request $request)
+    {
+        $resultId = $request->input('result_id');
+        $scores = StudentScore::where('result_id', $resultId)->orderBy('seat_number')->get();
+        return response()->json(['results' => $scores]);
+    }
+
+    // ============================================================
+    // الأرشفة والاستعادة والحذف الجماعي
+    // ============================================================
+
+    /**
+     * أرشفة مجموعة نتائج
+     */
+    public function archiveResult(Request $request, $id)
+    {
+        $result = Result::findOrFail($id);
+        $result->update(['archived' => true]);
+        return response()->json(['success' => true, 'message' => 'تم أرشفة النتائج بنجاح']);
+    }
+
+    /**
+     * استعادة مجموعة نتائج من الأرشفة
+     */
+    public function unarchiveResult(Request $request, $id)
+    {
+        $result = Result::findOrFail($id);
+        $result->update(['archived' => false]);
+        return response()->json(['success' => true, 'message' => 'تم استعادة النتائج بنجاح']);
+    }
+
+    /**
+     * حذف مجموعة نتائج بالكامل (مع جميع الدرجات)
+     */
+    public function deleteResultGroup($id)
+    {
+        $result = Result::findOrFail($id);
+        $result->studentScores()->delete();
+        $result->delete();
+        return response()->json(['success' => true, 'message' => 'تم حذف النتائج بالكامل']);
+    }
+
+    /**
+     * حذف/أرشفة/استعادة متعدد
+     */
+    public function bulkAction(Request $request)
+    {
+        $action = $request->input('action'); // archive, unarchive, delete
+        $ids = $request->input('ids', []);
+
+        if (empty($ids) || !in_array($action, ['archive', 'unarchive', 'delete'])) {
+            return response()->json(['error' => 'بيانات غير صالحة'], 400);
+        }
+
+        try {
+            $count = 0;
+            foreach ($ids as $id) {
+                $result = Result::find($id);
+                if (!$result) continue;
+
+                switch ($action) {
+                    case 'archive':
+                        $result->update(['archived' => true]);
+                        break;
+                    case 'unarchive':
+                        $result->update(['archived' => false]);
+                        break;
+                    case 'delete':
+                        $result->studentScores()->delete();
+                        $result->delete();
+                        break;
+                }
+                $count++;
+            }
+
+            $messages = [
+                'archive' => "تم أرشفة {$count} مجموعة",
+                'unarchive' => "تم استعادة {$count} مجموعة",
+                'delete' => "تم حذف {$count} مجموعة",
             ];
 
-            $activeFilters = $request->session()->get('active_search_filters', []);
-            $activeFilters[$finalGradeName][] = $currentTerm;
-            $activeFilters[$finalGradeName] = array_unique($activeFilters[$finalGradeName]);
-            
-            $searchableStudents = $request->session()->get('searchable_students_db', []);
-            foreach ($sheets as $sheetTitle => $studentsList) {
-                foreach ($studentsList as $st) {
-                    $st['gradeName'] = $finalGradeName;
-                    $st['term'] = $currentTerm;
-                    $searchableStudents[$st['seatNumber']] = $st;
-                }
-            }
-            
-            $request->session()->put('results_db', $allResults);
-            $request->session()->put('active_search_filters', $activeFilters);
-            $request->session()->put('searchable_students_db', $searchableStudents);
-            $request->session()->forget('live_multi_sheets');
-            return redirect()->to(route('admin.dashboard', ['tenant' => $tenant])."?view=results");
+            return response()->json(['success' => true, 'message' => $messages[$action]]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في العملية الجماعية: ' . $e->getMessage());
+            return response()->json(['error' => 'حدث خطأ'], 500);
         }
-
-        if ($action === 'delete_result') {
-            $allResults = array_filter($allResults, function($r) use ($request) { return $r['id'] !== $request->input('id'); });
-            $request->session()->put('results_db', array_values($allResults)); return redirect()->to(route('admin.dashboard', ['tenant' => $tenant])."?view=results");
-        }
-
-        $archivedResultsCount = count(array_filter($allResults, function($r) { return $r['archived']; }));
-        $filteredResults = array_filter($allResults, function($r) use ($showArchived) { return $r['archived'] === $showArchived; });
-        $stats = ['newsCount' => count($allNews), 'galleryCount' => count($allGallery), 'teachersCount' => count($allTeachers), 'resultsCount' => count(array_filter($allResults, function($r){return !$r['archived'];}))];
-
-        return view('admin.layout', compact('tenant', 'adminUser', 'schools', 'users', 'currentView', 'stats', 'filteredResults', 'archivedResultsCount', 'showArchived', 'toggles', 'grades', 'gradeMapping'));
     }
 }

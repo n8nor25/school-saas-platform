@@ -27,8 +27,27 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->brandName('لوحة إدارة المدرسة')
+            ->brandLogo(asset('favicon.ico'))
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => [
+                    50 => '#fef2f2',
+                    100 => '#fee2e2',
+                    200 => '#fecaca',
+                    300 => '#fca5a5',
+                    400 => '#f87171',
+                    500 => '#610000',
+                    600 => '#610000',
+                    700 => '#4a0000',
+                    800 => '#350000',
+                    900 => '#1e0000',
+                    950 => '#0f0000',
+                ],
+            ])
+            ->navigationGroups([
+                'الكشوف والنتائج',
+                'محتوى المدرسة',
+                'الإعدادات',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
@@ -38,7 +57,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -50,9 +68,6 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
-                // === أضف هذين السطرين هنا إجبارياً لعزل لوحة تحكم كل مدرسة عن الأخرى ===
-               \Stancl\Tenancy\Middleware\InitializeTenancyByDomain::class,
-               \Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains::class,
             ])
             ->authMiddleware([
                 Authenticate::class,

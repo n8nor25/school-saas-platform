@@ -1,136 +1,195 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم الإدارة - نظام الساس المدرسي</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3/dist/js/bootstrap.bundle.min.js"></script> 
+    <title>@yield('title', 'إدارة المدرسة')</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-        body { font-family: 'Cairo', sans-serif; }
+        .num-en {
+            unicode-bidi: bidi-override;
+            direction: ltr;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
     </style>
 </head>
-<body class="bg-slate-100 text-gray-800 min-h-screen flex flex-col">
+<body class="bg-gray-100 min-h-screen">
 
-    <header class="bg-white border-b h-16 flex items-center justify-between px-6 sticky top-0 z-40 shadow-sm">
-        <div class="flex items-center gap-3">
-            <div class="w-9 h-9 bg-[#610000] rounded-xl flex items-center justify-center shadow-md">
-                <i data-lucide="shield-check" class="w-5 h-5 text-white"></i>
+<div class="flex min-h-screen">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gradient-to-b from-gray-800 to-gray-900 text-white flex flex-col shadow-xl">
+        <!-- Logo / Header -->
+        <div class="p-5 border-b border-gray-700">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                    م
+                </div>
+                <div>
+                    <p class="text-sm font-bold">{{ $adminUser['username'] ?? 'إدارة المدرسة' }}</p>
+                    <p class="text-xs text-gray-400">{{ $tenant ?? 'school1' }} - إدارة المدرسة</p>
+                </div>
             </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="/{{ $tenant ?? '' }}/admin/dashboard?view=dashboard"
+               class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ ($view ?? '') === 'dashboard' ? 'bg-red-600 text-white' : 'text-gray-300 hover:bg-gray-700' }}">
+                <span>🏠</span>
+                <span class="text-sm">الصفحة الرئيسية</span>
+            </a>
+
+            <a href="/{{ $tenant ?? '' }}/admin/dashboard?view=results"
+               class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ ($view ?? '') === 'results' ? 'bg-red-600 text-white' : 'text-gray-300 hover:bg-gray-700' }}">
+                <span>📊</span>
+                <span class="text-sm">إضافة وعرض النتائج</span>
+            </a>
+
+            <a href="/{{ $tenant ?? '' }}/admin/dashboard?view=teachers"
+               class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ ($view ?? '') === 'teachers' ? 'bg-red-600 text-white' : 'text-gray-300 hover:bg-gray-700' }}">
+                <span>👨‍🏫</span>
+                <span class="text-sm">إدارة المعلمين</span>
+            </a>
+
+            <a href="/{{ $tenant ?? '' }}/admin/dashboard?view=news"
+               class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ ($view ?? '') === 'news' ? 'bg-red-600 text-white' : 'text-gray-300 hover:bg-gray-700' }}">
+                <span>📰</span>
+                <span class="text-sm">الأخبار والإعلانات</span>
+            </a>
+
+            <a href="/{{ $tenant ?? '' }}/admin/dashboard?view=settings"
+               class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors {{ ($view ?? '') === 'settings' ? 'bg-red-600 text-white' : 'text-gray-300 hover:bg-gray-700' }}">
+                <span>⚙️</span>
+                <span class="text-sm">إعدادات المدرسة</span>
+            </a>
+
+            <div class="pt-4 border-t border-gray-700 mt-4">
+                <a href="/{{ $tenant ?? '' }}"
+                   class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-300 hover:bg-gray-700">
+                    <span>🌐</span>
+                    <span class="text-sm">عرض الموقع</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- Stats Footer -->
+        @if(isset($stats))
+        <div class="p-4 border-t border-gray-700">
+            <p class="text-xs text-gray-400 mb-2">إحصائيات سريعة</p>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-gray-700 rounded-lg p-2 text-center">
+                    <p class="text-gray-400">النتائج</p>
+                    <p class="text-white font-bold num-en">{{ $stats['totalResults'] ?? 0 }}</p>
+                </div>
+                <div class="bg-gray-700 rounded-lg p-2 text-center">
+                    <p class="text-gray-400">الطلاب</p>
+                    <p class="text-white font-bold num-en">{{ $stats['totalStudents'] ?? 0 }}</p>
+                </div>
+                <div class="bg-gray-700 rounded-lg p-2 text-center">
+                    <p class="text-gray-400">نشطة</p>
+                    <p class="text-green-400 font-bold num-en">{{ $stats['activeResults'] ?? 0 }}</p>
+                </div>
+                <div class="bg-gray-700 rounded-lg p-2 text-center">
+                    <p class="text-gray-400">مؤرشفة</p>
+                    <p class="text-orange-400 font-bold num-en">{{ $stats['archivedResults'] ?? 0 }}</p>
+                </div>
+            </div>
+        </div>
+        @endif
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-auto">
+        <!-- Top Bar -->
+        <header class="bg-white shadow-sm border-b px-6 py-4 flex items-center justify-between">
             <div>
-                <h1 class="text-sm font-bold text-gray-900">لوحة الإدارة الفائقة</h1>
-                <p class="text-[10px] text-gray-400">مدرسة الأجاويد الحديثة - {{ $tenant }}</p>
+                <h1 class="text-xl font-bold text-gray-800">
+                    @switch($view ?? 'dashboard')
+                        @case('dashboard') 🏠 الصفحة الرئيسية @break
+                        @case('results') 📊 إضافة وعرض نتائج @break
+                        @case('teachers') 👨‍🏫 إدارة المعلمين @break
+                        @case('news') 📰 الأخبار والإعلانات @break
+                        @case('settings') ⚙️ إعدادات المدرسة @break
+                        @default 🏠 الصفحة الرئيسية
+                    @endswitch
+                </h1>
             </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-500">{{ $tenant ?? '' }}</span>
+                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <span class="text-red-600 text-sm font-bold">م</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="p-6">
+            @switch($view ?? 'dashboard')
+                @case('results')
+                    @include('admin.parts.results')
+                    @break
+                @case('teachers')
+                    <div class="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-400">
+                        <div class="text-5xl mb-3">👨‍🏫</div>
+                        <p class="text-lg">قريباً - إدارة المعلمين</p>
+                    </div>
+                    @break
+                @case('news')
+                    <div class="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-400">
+                        <div class="text-5xl mb-3">📰</div>
+                        <p class="text-lg">قريباً - الأخبار والإعلانات</p>
+                    </div>
+                    @break
+                @case('settings')
+                    <div class="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-400">
+                        <div class="text-5xl mb-3">⚙️</div>
+                        <p class="text-lg">قريباً - إعدادات المدرسة</p>
+                    </div>
+                    @break
+                @case('dashboard')
+                @default
+                    <!-- Dashboard Stats -->
+                    @if(isset($stats))
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white rounded-xl shadow-sm border p-5 text-center">
+                            <div class="text-3xl mb-2">📊</div>
+                            <p class="text-2xl font-bold text-gray-800 num-en">{{ $stats['totalResults'] ?? 0 }}</p>
+                            <p class="text-sm text-gray-500">إجمالي النتائج</p>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm border p-5 text-center">
+                            <div class="text-3xl mb-2">👨‍🎓</div>
+                            <p class="text-2xl font-bold text-gray-800 num-en">{{ $stats['totalStudents'] ?? 0 }}</p>
+                            <p class="text-sm text-gray-500">إجمالي الطلاب</p>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm border p-5 text-center">
+                            <div class="text-3xl mb-2">✅</div>
+                            <p class="text-2xl font-bold text-green-600 num-en">{{ $stats['activeResults'] ?? 0 }}</p>
+                            <p class="text-sm text-gray-500">نتائج نشطة</p>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm border p-5 text-center">
+                            <div class="text-3xl mb-2">📦</div>
+                            <p class="text-2xl font-bold text-orange-600 num-en">{{ $stats['archivedResults'] ?? 0 }}</p>
+                            <p class="text-sm text-gray-500">نتائج مؤرشفة</p>
+                        </div>
+                    </div>
+                    @endif
+
+                    <div class="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-400">
+                        <div class="text-5xl mb-3">🏫</div>
+                        <p class="text-lg">مرحباً بك في لوحة تحكم المدرسة</p>
+                        <p class="text-sm mt-2">استخدم القائمة الجانبية للتنقل</p>
+                    </div>
+                    @break
+            @endswitch
         </div>
+    </main>
 
-        <div class="flex items-center gap-4">
-            <div class="text-left hidden sm:block">
-                <p class="text-xs font-bold text-gray-800">{{ $adminUser['username'] }}</p>
-                <span class="text-[10px] bg-red-50 text-[#610000] px-2 py-0.5 rounded-full font-bold border border-red-100">مدير النظام</span>
-            </div>
-            <div class="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 rounded-full border-2 border-white shadow flex items-center justify-center font-bold text-gray-600">
-                م ش
-            </div>
-        </div>
-    </header>
+</div>
 
-    <div class="flex flex-1">
-        <aside class="w-64 bg-[#1E293B] text-slate-300 flex flex-col sticky top-16 h-[calc(100vh-64px)] z-30 shadow-xl">
-            <div class="p-4 border-b border-slate-700/50 bg-[#151f32]">
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">قائمة الإدارة السريعة</p>
-                <div class="text-xs text-emerald-400 flex items-center gap-1 font-bold">
-                    <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                    السيرفر المحلي متصل ومؤمن
-                </div>
-            </div>
-
-            <nav class="flex-1 p-3 space-y-1 overflow-y-auto text-xs font-bold">
-                <a href="?view=dashboard" class="flex items-center gap-2.5 px-3 h-11 rounded-xl transition-all {{ $currentView === 'dashboard' ? 'bg-[#610000] text-white shadow-md' : 'hover:bg-slate-800 hover:text-white' }}">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
-                    <span>الرئيسية والإحصائيات</span>
-                </a>
-
-                <a href="?view=results" class="flex items-center gap-2.5 px-3 h-11 rounded-xl transition-all {{ $currentView === 'results' ? 'bg-[#610000] text-white shadow-md' : 'hover:bg-slate-800 hover:text-white' }}">
-                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
-                    <span>إدارة نتائج الامتحانات</span>
-                </a>
-
-                <a href="?view=teachers" class="flex items-center gap-2.5 px-3 h-11 rounded-xl transition-all {{ $currentView === 'teachers' ? 'bg-[#610000] text-white shadow-md' : 'hover:bg-slate-800 hover:text-white' }}">
-                    <i data-lucide="users" class="w-4 h-4"></i>
-                    <span>شؤون المعلمين</span>
-                </a>
-
-                <a href="?view=news" class="flex items-center gap-2.5 px-3 h-11 rounded-xl transition-all {{ $currentView === 'news' ? 'bg-[#610000] text-white shadow-md' : 'hover:bg-slate-800 hover:text-white' }}">
-                    <i data-lucide="newspaper" class="w-4 h-4"></i>
-                    <span>أخبار ومستجدات المدرسة</span>
-                </a>
-
-                <div class="pt-4 border-t border-slate-700/50 my-2"></div>
-
-                <a href="/{{ $tenant }}/search" target="_blank" class="flex items-center gap-2.5 px-3 h-11 rounded-xl bg-slate-800 text-blue-400 border border-slate-700/60 hover:bg-slate-700 transition-all">
-                    <i data-lucide="external-link" class="w-4 h-4"></i>
-                    <span>بوابة استعلام الطلاب 🌐</span>
-                </a>
-            </nav>
-
-            <div class="p-4 bg-[#151f32] border-t border-slate-700/50 text-center text-[11px] text-slate-400">
-                إصدار النظام المطور v12.6
-            </div>
-        </aside>
-
-        <main class="flex-1 p-6 overflow-y-auto max-w-[calc(100vh-256px)]">
-            
-            @if($currentView === 'dashboard')
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6 text-xs font-bold">
-                    <div class="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
-                        <div class="space-y-1">
-                            <span class="text-gray-400 block">الكشوف المعتمدة</span>
-                            <span class="text-2xl text-gray-800 font-mono font-bold">{{ $stats['resultsCount'] ?? 0 }} كشف</span>
-                        </div>
-                        <div class="w-11 h-11 bg-red-50 text-[#610000] rounded-xl flex items-center justify-center"><i data-lucide="file-check"></i></div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
-                        <div class="space-y-1">
-                            <span class="text-gray-400 block">هيئة التدريس</span>
-                            <span class="text-2xl text-gray-800 font-mono font-bold">{{ $stats['teachersCount'] ?? 0 }} معلم</span>
-                        </div>
-                        <div class="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"><i data-lucide="users"></i></div>
-                    </div>
-                    <div class="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
-                        <div class="space-y-1">
-                            <span class="text-gray-400 block">المقالات والأخبار</span>
-                            <span class="text-2xl text-gray-800 font-mono font-bold">{{ $stats['newsCount'] ?? 0 }} خبر</span>
-                        </div>
-                        <div class="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center"><i data-lucide="text-quote"></i></div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl border p-6 shadow-sm space-y-2">
-                    <h2 class="text-base font-bold text-gray-800">مرحباً بك مجدداً يا هندسة بقاعدة البيانات السيادية 👋</h2>
-                    <p class="text-gray-500 max-w-xl leading-relaxed text-xs">يمكنك من خلال القائمة الجانبية رفع كشوف الإكسيل ومزامنتها حياً ومباشرة مع شاشات الطلاب الخارجية فوراً وبأعلى معدلات الحماية المعمارية المتكاملة.</p>
-                </div>
-            @endif
-
-            @if($currentView === 'results' || session()->has('live_multi_sheets') || session()->has('preview_grade'))
-                @include('admin.parts.results')
-            @endif
-
-            @if($currentView === 'teachers')
-                <div class="bg-white rounded-2xl border p-6 text-center text-gray-400">
-                    <i data-lucide="users" class="w-12 h-12 mx-auto mb-2 text-gray-300"></i>
-                    <p>لوحة شؤون المعلمين وأعضاء الكنترول المدرسي المعتمدين.</p>
-                </div>
-            @endif
-
-        </main>
-    </div>
-
-    <script>
-        // تفعيل الأيقونات الحركية المتجاوبة في كامل الـ Layout والأجزاء المستدعاة داخله
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    </script>
 </body>
 </html>

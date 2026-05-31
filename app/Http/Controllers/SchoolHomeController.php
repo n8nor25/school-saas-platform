@@ -3,66 +3,59 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\SchoolSetting;
+use App\Models\SchoolNews;
+use App\Models\SchoolTeacher;
+use App\Models\SchoolSlider;
 
 class SchoolHomeController extends Controller
 {
-    public function index($tenant)
+    public function index(Request $request, $tenant)
     {
-        // 1. تهيئة مساحة المدرسة برمجياً لربط الاتصال بـ Supabase تلقائياً عند الحاجة
         if (function_exists('tenancy')) {
             tenancy()->initialize($tenant);
         }
 
-        // 2. تجميع كافة البيانات المخصصة لهوية المدرسة بالتطابق مع ملف Next.js
+        // جلب البيانات من قاعدة البيانات مع قيم افتراضية احتياطية
         $schoolDetails = [
-            'name' => $tenant == 'school1' ? 'مدرسة الأجاويد الحديثة' : 'المدرسة الإعدادية النموذجية',
-            'description' => 'مدرسة رائدة في التعليم الإعدادي تسعى لبناء جيل واعد يمتلك مهارات المستقبل.',
-            'phone' => '0123456789',
-            'email' => 'info@school.edu',
-            'address' => 'الشارع الرئيسي، جمهورية مصر العربية',
-            'facebook_url' => 'https://facebook.com',
-            
-            // إعدادات المكونات وحالة الظهور (Settings toggles)
+            'name' => SchoolSetting::get('school_name', 'المدرسة الإعدادية النموذجية'),
+            'description' => SchoolSetting::get('school_description', 'مدرسة رائدة في التعليم الإعدادي.'),
+            'phone' => SchoolSetting::get('school_phone', ''),
+            'email' => SchoolSetting::get('school_email', ''),
+            'address' => SchoolSetting::get('school_address', ''),
+            'facebook_url' => SchoolSetting::get('school_facebook', '#'),
+
             'settings' => [
-                'hero_title' => 'مرحباً بكم في مدرستنا',
-                'hero_subtitle' => 'نحو تعليم متميز ومستقبل مشرق لطلابنا',
-                'banner_title' => 'فتح باب التسجيل للعام الدراسي الجديد - أهلاً بكم',
-                'banner_image' => 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1200',
-                'vision' => 'نسعى لتقديم تعليم عصري متميز يُعد طلابنا ليكونوا قادة المستقبل، من خلال بيئة تعليمية محفزة وكوادر تعليمية مؤهلة.',
-                'about_video' => 'https://www.youtube.com/embed/dQw4w9WgXcQ', // مثال لفيديو تعريفي
-                'live_stream_url' => 'https://youtube.com', // رابط البث المباشر للمسرح
-                'show_live_stream' => true,
+                'hero_title' => SchoolSetting::get('hero_title', 'مرحباً بكم في مدرستنا'),
+                'hero_subtitle' => SchoolSetting::get('hero_subtitle', 'نحو تعليم متميز'),
+                'vision' => SchoolSetting::get('vision', ''),
+                'about_video' => SchoolSetting::get('about_video', ''),
+                'live_stream_url' => SchoolSetting::get('live_stream_url', ''),
+                'show_live_stream' => SchoolSetting::get('show_live_stream', false),
+                'banner_title' => SchoolSetting::get('banner_title', ''),
+                'banner_image' => SchoolSetting::get('banner_image', ''),
             ],
 
-            // إحصائيات المدرسة الحية (Stats)
-            'stats' => [
-                'students' => 450,
-                'teachers' => 35,
-                'classes' => 18,
-                'years' => 12
-            ],
+            'stats' => SchoolSetting::get('stats', [
+                'students' => 0,
+                'teachers' => 0,
+                'classes' => 0,
+                'years' => 0,
+            ]),
 
-            // السلايدر الرئيسي (Sliders)
-            'slider' => [
-                ['title' => 'أهلاً بكم في منصتنا التعليمية المطورة', 'subtitle' => 'تصفح الخدمات الإلكترونية وتابع درجاتك أولاً بأول', 'image' => 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=1200'],
-                ['title' => 'تكريم الطلاب المتفوقين في الأنشطة الطلابية', 'subtitle' => 'مدرستنا ترعى المواهب وتدعم المبتكرين دائماً', 'image' => 'https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?q=80&w=1200']
-            ],
+            'slider' => SchoolSlider::where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->toArray(),
 
-            // الأخبار والتنبيهات الهامة (News & Alerts)
-            'news' => [
-                ['title' => 'تنبيه عاجل: تعديل جدول اختبارات الشهر لصفوف المرحلة الإعدادية', 'category' => 'تنبيه', 'date' => '2026-05-27'],
-                ['title' => 'بدء فعاليات مسابقة القرآن الكريم السنوية بالمدرسة', 'category' => 'فعاليات', 'date' => '2026-05-26'],
-                ['title' => 'جدول امتحانات العملي لمادة الحاسب الآلي والعلوم', 'category' => 'تنبيه', 'date' => '2026-05-24'],
-                ['title' => 'تكريم فريق المدرسة الفائز بالمركز الأول في دوري كرة القدم', 'category' => 'أخبار', 'date' => '2026-05-22'],
-            ],
+            'news' => SchoolNews::where('is_active', true)
+                ->orderBy('date', 'desc')
+                ->get()
+                ->toArray(),
 
-            // كادر المعلمين المتميزين (Teachers)
-            'teachers' => [
-                ['name' => 'أ. أحمد رأفت', 'subject' => 'رياضيات', 'email' => 'ahmed@school.edu', 'avatar' => 'https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=150'],
-                ['name' => 'أ. سارة محمود', 'subject' => 'لغة عربية', 'email' => 'sara@school.edu', 'avatar' => 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=150'],
-                ['name' => 'أ. محمد إبراهيم', 'subject' => 'علوم', 'email' => 'mohamed@school.edu', 'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150'],
-                ['name' => 'أ. رانيا علي', 'subject' => 'لغة انجليزية', 'email' => 'rania@school.edu', 'avatar' => 'https://images.unsplash.com/photo-1580894732444-8fecef2271ff?q=80&w=150'],
-            ]
+            'teachers' => SchoolTeacher::where('is_active', true)
+                ->get()
+                ->toArray(),
         ];
 
         return view('school.index', compact('tenant', 'schoolDetails'));

@@ -11,18 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-   // إذا لم يكن الجدول موجوداً، قم بإنشائه (هذا سيمنع الخطأ السابق)
-        if (!Schema::hasTable('users')) {
-            Schema::create('users', function (Blueprint $table) {
-                $table->id();
-                $table->string('name');
-                $table->string('email')->unique();
-                $table->string('password');
-                $table->enum('role', ['admin', 'teacher', 'student', 'parent'])->default('student');
-                $table->rememberToken();
-                $table->timestamps();
-            });
-        }
+        Schema::create('tenant_users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->enum('role', ['admin', 'teacher', 'student', 'parent'])->default('student');
+            $table->string('phone')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->rememberToken();
+            $table->timestamps();
+        });
     }
 
     /**

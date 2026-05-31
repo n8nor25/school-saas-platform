@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('student_scores');
+        Schema::dropIfExists('results');
+
         Schema::create('results', function (Blueprint $table) {
             $table->id();
             $table->string('grade_name');

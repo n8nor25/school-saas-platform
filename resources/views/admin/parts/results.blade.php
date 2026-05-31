@@ -1,219 +1,510 @@
-<div class="space-y-6 text-xs font-semibold animate-fade-in">
-    
-    <div class="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
-        <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
-            <i data-lucide="upload" class="text-[#610000] w-4 h-4"></i>
-            رفع واعتماد كشوف نتائج الامتحانات (Excel / JSON)
-        </h3>
-        <form action="{{ route('admin.dashboard', ['tenant' => $tenant]) }}?view=results" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          @csrf
-           <input type="hidden" name="action" value="preview_upload">
-        
-            <div>
-                <label class="text-gray-600 block mb-1.5">اختر الصف الدراسي المستهدف *</label>
-                <select name="gradeName" required class="w-full h-11 px-3 bg-gray-50 border rounded-xl focus:outline-none">
-                    @foreach(($grades ?? []) as $g)
-                        @php $gName = is_array($g) ? $g['name'] : $g; @endphp
-                        <option value="{{ $gName }}">{{ $gradeMapping[$gName] ?? $gName }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="text-gray-600 block mb-1.5">اختر الترم الحالي</label>
-                <select name="term" required class="w-full h-11 px-3 bg-gray-50 border rounded-xl focus:outline-none">
-                    <option value="الفصل الأول">الفصل الأول</option>
-                    <option value="الفصل الثاني">الفصل الثاني</option>
-                </select>
-            </div>
-            <div>
-                <label class="text-gray-600 block mb-1.5">ملف كشف الدرجات المعتمد</label>
-                <input type="file" name="file" required accept=".xlsx, .xls, .json" class="w-full h-11 p-1 bg-gray-50 border rounded-xl focus:outline-none">
-            </div>
-            <div class="sm:col-span-3">
-                <button type="submit" class="h-11 px-6 bg-[#610000] hover:bg-[#8B0000] text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-all">
-                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> 
-                    تحليل وفحص محتوى كافة أوراق العمل المرفوعة
-                </button>
+<div class="space-y-6 text-xs font-semibold">
+
+    {{-- رفع الملف --}}
+    <div class="bg-white rounded-2xl border p-5 shadow-sm">
+        <h3 class="font-bold text-sm text-gray-700 mb-4">📤 رفع كشوف النتائج</h3>
+        <form id="uploadForm" action="{{ route('admin.results.upload', ['tenant' => $tenant]) }}" method="POST" enctype="multipart/form-data">
+            @csrf
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 mb-1">الصف الدراسي</label>
+                    <input type="text" name="grade_name" class="w-full border rounded-lg px-3 py-2 text-xs" placeholder="مثال: الأول الإعدادي" required value="{{ old('grade_name') }}">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 mb-1">الفصل</label>
+                    <select name="term" class="w-full border rounded-lg px-3 py-2 text-xs" required>
+                        <option value="الفصل الأول">الفصل الأول</option>
+                        <option value="الفصل الثاني">الفصل الثاني</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 mb-1">ملف النتائج</label>
+                    <input type="file" name="file" class="w-full border rounded-lg px-3 py-1.5 text-xs" accept=".xlsx,.xls,.csv,.json,.txt" required>
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="w-full bg-red-600 text-white rounded-lg px-4 py-2 text-xs font-bold hover:bg-red-700 transition-colors">رفع الملف</button>
+                </div>
             </div>
         </form>
+
+        @if(session('success'))
+            <div class="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-xs">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{{ session('error') }}</div>
+        @endif
     </div>
 
-    @if(session()->has('live_multi_sheets') || session()->has('preview_grade'))
-        @php
-            $sheets = session()->get('live_multi_sheets', [
-                'كشف الصف الثالث الإعدادي (أ)' => [
-                    ['seatNumber' => '49463', 'studentName' => 'محمد عبد العزيز محروس', 'arabic' => 50, 'english' => 16, 'socialStudies' => 38, 'math' => 45, 'science' => 35, 'religion' => 19, 'art' => 18, 'computer' => 19, 'total' => 184]
-                ]
-            ]);
-            $pGrade = session('preview_grade', 'grade_3');
-            $pTerm = session('preview_term', 'الفصل الأول');
-        @endphp
-        <div class="bg-white rounded-2xl border p-5 shadow-sm space-y-4 border-emerald-200">
-            <div class="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
-                <h3 class="text-sm font-bold text-emerald-600 flex items-center gap-1.5">
-                    <i data-lucide="layers" class="w-4 h-4"></i> 
-                    معاينة وتدقيق النتائج وتحديثها حياً قبل الحفظ النهائي (إجمالي الأوراق: {{ count($sheets) }})
-                </h3>
-                <span class="bg-slate-100 text-gray-700 px-2.5 py-1.5 rounded-xl font-bold border text-xs">{{ $gradeMapping[$pGrade] ?? $pGrade }} - {{ $pTerm }}</span>
-            </div>
-
-            <div class="flex gap-1 overflow-x-auto pb-1 border-b">
-                @foreach($sheets as $sheetName => $studentsList)
-                    <button type="button" onclick="switchSheetTab('{{ md5($sheetName) }}', this)" class="sheet-tab-btn h-9 px-3 border-b-2 font-bold text-[11px] whitespace-nowrap transition-colors {{ $loop->first ? 'border-[#610000] text-[#610000] bg-red-50/40 rounded-t-lg' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
-                        <i data-lucide="sheet" class="w-3.5 h-3.5 inline ml-0.5"></i> {{ $sheetName }} ({{ count($studentsList) }})
-                    </button>
-                @endforeach
-            </div>
-
-            @foreach($sheets as $sheetName => $studentsList)
-                <div id="sheet-container-{{ md5($sheetName) }}" class="sheet-content-panel space-y-2 {{ $loop->first ? '' : 'hidden' }}">
-                    <div class="overflow-x-auto rounded-xl border border-gray-100">
-                        <table class="w-full text-right divide-y divide-gray-100 text-xs min-w-[1100px]">
-                            <thead class="bg-slate-50 font-bold text-gray-700">
-                                <tr>
-                                    <th class="p-2.5">رقم الجلوس</th>
-                                    <th class="p-2.5">اسم الطالب الكلي</th>
-                                    <th class="p-2.5 text-center w-16">عربي</th>
-                                    <th class="p-2.5 text-center w-16">نجليزي</th>
-                                    <th class="p-2.5 text-center w-16">دراسات</th>
-                                    <th class="p-2.5 text-center w-16">رياضيات</th>
-                                    <th class="p-2.5 text-center w-16">علوم</th>
-                                    <th class="p-2.5 text-center w-16">دين</th>
-                                    <th class="p-2.5 text-center w-16">فنية</th>
-                                    <th class="p-2.5 text-center w-16">كمبيوتر</th>
-                                    <th class="p-2.5 text-center bg-emerald-600 text-white font-bold w-20">المجموع</th>
-                                    <th class="p-2.5 text-center">الإجراءات</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100 font-semibold text-gray-600">
-                                @foreach($studentsList as $stud)
-                                    <tr class="hover:bg-slate-50/60 transition-colors">
-                                        <form action="?view=results" method="POST">
-                                            @csrf
-                                            <input type="hidden" name="action" value="update_inline_student">
-                                            <input type="hidden" name="sheet_name" value="{{ $sheetName }}">
-                                            <input type="hidden" name="preview_grade" value="{{ $pGrade }}">
-                                            <input type="hidden" name="preview_term" value="{{ $pTerm }}">
-
-                                            <td class="p-2">
-                                                <input type="text" name="seatNumber" value="{{ $stud['seatNumber'] }}" readonly class="w-20 h-8 text-center bg-gray-100 border rounded-lg font-bold text-blue-600 focus:outline-none text-[11px]">
-                                            </td>
-                                            <td class="p-2">
-                                                <input type="text" name="studentName" value="{{ $stud['studentName'] }}" required class="w-44 h-8 px-2 border rounded-lg text-gray-900 focus:outline-none focus:border-blue-500 text-[11px]">
-                                            </td>
-                                            <td class="p-1"><input type="number" name="arabic" value="{{ $stud['arabic'] ?? 0 }}" step="0.5" oninput="calculateInlineRowTotal(this)" class="w-14 h-8 text-center border rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            <td class="p-1"><input type="number" name="english" value="{{ $stud['english'] ?? 0 }}" step="0.5" oninput="calculateInlineRowTotal(this)" class="w-14 h-8 text-center border rounded-lg focus:outline-none font-mono text-[11px] text-blue-600 font-bold"></td>
-                                            <td class="p-1"><input type="number" name="socialStudies" value="{{ $stud['socialStudies'] ?? 0 }}" step="0.5" oninput="calculateInlineRowTotal(this)" class="w-14 h-8 text-center border rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            <td class="p-1"><input type="number" name="math" value="{{ $stud['math'] ?? 0 }}" step="0.5" oninput="calculateInlineRowTotal(this)" class="w-14 h-8 text-center border rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            <td class="p-1"><input type="number" name="science" value="{{ $stud['science'] ?? 0 }}" step="0.5" oninput="calculateInlineRowTotal(this)" class="w-14 h-8 text-center border rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            
-                                            <td class="p-1"><input type="number" name="religion" value="{{ $stud['religion'] ?? 0 }}" step="0.5" class="w-14 h-8 text-center border bg-purple-50/20 rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            <td class="p-1"><input type="number" name="art" value="{{ $stud['art'] ?? 0 }}" step="0.5" class="w-14 h-8 text-center border bg-purple-50/20 rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            <td class="p-1"><input type="number" name="computer" value="{{ $stud['computer'] ?? 0 }}" step="0.5" class="w-14 h-8 text-center border bg-purple-50/20 rounded-lg focus:outline-none font-mono text-[11px]"></td>
-                                            
-                                            <td class="p-2 text-center bg-emerald-50 text-emerald-900 font-bold font-mono text-xs">
-                                                <input type="text" name="total" value="{{ $stud['total'] ?? 0 }}" readonly class="w-16 h-8 text-center bg-transparent border-0 font-bold text-emerald-700 pointer-events-none">
-                                            </td>
-                                            
-                                            <td class="p-2 flex items-center justify-center gap-1.5 mt-0.5">
-                                                <button type="submit" class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200 transition-colors" title="حفظ هذا السطر"><i data-lucide="check" class="w-3.5 h-3.5"></i></button>
-                                        </form>
-                                                <form action="?view=results" method="POST" class="inline">
-                                                    @csrf
-                                                    <input type="hidden" name="action" value="delete_student_from_sheet">
-                                                    <input type="hidden" name="sheet_name" value="{{ $sheetName }}">
-                                                    <input type="hidden" name="seatNumber" value="{{ $stud['seatNumber'] }}">
-                                                    <input type="hidden" name="preview_grade" value="{{ $pGrade }}">
-                                                    <input type="hidden" name="preview_term" value="{{ $pTerm }}">
-                                                    <button type="submit" class="p-1.5 text-red-500 hover:bg-red-50 rounded border border-red-100 transition-colors"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
-                                                </form>
-                                            </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @endforeach
-            
-            <form action="?view=results" method="POST" class="flex gap-2 pt-2 border-t">
-                @csrf
-                <input type="hidden" name="action" value="save_results">
-                <input type="hidden" name="gradeName" value="{{ $pGrade }}">
-                <input type="hidden" name="term" value="{{ $pTerm }}">
-                <button type="submit" class="h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1 shadow-md">
-                    <i data-lucide="save" class="w-4 h-4"></i> حفظ النتائج نهائياً ✓
-                </button>
-                <a href="?view=results" class="h-10 px-4 border rounded-xl hover:bg-gray-50 flex items-center font-bold">إلغاء</a>
-            </form>
+    {{-- قواعد الحساب --}}
+    <details class="bg-white rounded-2xl border shadow-sm">
+        <summary class="p-4 text-gray-500 cursor-pointer text-xs font-bold">📋 قواعد حساب المجموع</summary>
+        <div class="px-5 pb-4 text-xs text-gray-600 space-y-1">
+            <p><strong>تُحسب:</strong> عربي + إنجليزي + اجتماعيات + جبر + هندسة + علوم</p>
+            <p><strong>لا تُحسب:</strong> دين • فنية • حاسب</p>
         </div>
-    @endif
+    </details>
 
-    <div class="bg-white rounded-2xl border shadow-sm p-4 space-y-3">
-        <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1.5 border-b pb-3">
-            <i data-lucide="file-spreadsheet" class="text-[#610000] w-4 h-4"></i> 
-            سجل الكشوف المعتمدة لنتائج الامتحانات المدرسية
-        </h3>
-
+    {{-- جدول المعاينة --}}
+    <div id="preview-section" style="display:none" class="bg-white rounded-2xl border p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-sm text-gray-700">👁️ معاينة البيانات</h3>
+            <div class="flex gap-2">
+                <button onclick="saveResults()" class="bg-green-600 text-white rounded-lg px-4 py-1.5 text-xs font-bold hover:bg-green-700">💾 حفظ الكل</button>
+                <button onclick="clearPreview()" class="border rounded-lg px-4 py-1.5 text-xs font-bold hover:bg-gray-50">✖ إلغاء</button>
+            </div>
+        </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-right divide-y divide-gray-100 font-semibold text-xs">
-                <thead class="bg-gray-50 text-gray-700 font-bold">
-                    <tr>
-                        <th class="p-3">#</th>
-                        <th class="p-3">الصف الدراسي الحالي بالمنصة</th>
-                        <th class="p-3">الترم الدراسي</th>
-                        <th class="p-3">إجمالي الطلاب المعتمدين</th>
-                        <th class="p-3 text-center">حذف كلي</th>
+            <table class="w-full border-collapse text-xs">
+                <thead>
+                    <tr class="bg-gray-800 text-white">
+                        <th class="border px-2 py-2">#</th>
+                        <th class="border px-2 py-2">رقم الجلوس</th>
+                        <th class="border px-2 py-2">اسم الطالب</th>
+                        <th class="border px-2 py-2">عربي</th>
+                        <th class="border px-2 py-2">إنجليزي</th>
+                        <th class="border px-2 py-2">اجتماعيات</th>
+                        <th class="border px-2 py-2">جبر</th>
+                        <th class="border px-2 py-2">هندسة</th>
+                        <th class="border px-2 py-2 bg-blue-700">رياضيات</th>
+                        <th class="border px-2 py-2">علوم</th>
+                        <th class="border px-2 py-2 bg-amber-600">المجموع</th>
+                        <th class="border px-2 py-2 bg-gray-500">دين</th>
+                        <th class="border px-2 py-2 bg-gray-500">فنية</th>
+                        <th class="border px-2 py-2 bg-gray-500">حاسب</th>
+                        <th class="border px-2 py-2">إجراء</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 text-gray-600">
-                    @foreach(($filteredResults ?? []) as $res)
-                        <tr class="hover:bg-slate-50/60 transition-colors">
-                            <td class="p-3 font-mono text-gray-400">{{ $loop->iteration }}</td>
-                            <td class="p-3">
-                                <span class="bg-[#610000]/5 text-[#610000] px-2.5 py-1 rounded-xl font-bold border border-red-100 text-xs">
-                                    {{ $gradeMapping[$res['gradeName']] ?? $res['gradeName'] }}
-                                </span>
+                <tbody id="preview-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- إدارة مجموعات النتائج (أرشفة/حذف/استعادة) --}}
+    <div class="bg-white rounded-2xl border p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-sm text-gray-700">📁 إدارة مجموعات النتائج</h3>
+        </div>
+
+        {{-- أزرار الإجراءات الجماعية --}}
+        <div class="flex flex-wrap gap-2 mb-3">
+            <button onclick="bulkAction('archive')" class="bg-amber-500 text-white rounded-lg px-3 py-1.5 text-xs font-bold hover:bg-amber-600">📦 أرشفة المحدد</button>
+            <button onclick="bulkAction('unarchive')" class="bg-green-500 text-white rounded-lg px-3 py-1.5 text-xs font-bold hover:bg-green-600">♻️ استعادة المحدد</button>
+            <button onclick="bulkAction('delete')" class="bg-red-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold hover:bg-red-700">🗑️ حذف المحدد</button>
+        </div>
+
+        {{-- فلتر الأرشفة --}}
+        <div class="flex gap-2 mb-3">
+            <button onclick="filterGroups('all')" id="filter-all" class="border rounded-lg px-3 py-1 text-xs font-bold bg-gray-800 text-white">الكل</button>
+            <button onclick="filterGroups('active')" id="filter-active" class="border rounded-lg px-3 py-1 text-xs font-bold hover:bg-green-50">نشطة</button>
+            <button onclick="filterGroups('archived')" id="filter-archived" class="border rounded-lg px-3 py-1 text-xs font-bold hover:bg-amber-50">مؤرشفة</button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-xs">
+                <thead>
+                    <tr class="bg-gray-700 text-white">
+                        <th class="border px-2 py-2"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                        <th class="border px-2 py-2">الصف</th>
+                        <th class="border px-2 py-2">الفصل</th>
+                        <th class="border px-2 py-2">عدد الطلاب</th>
+                        <th class="border px-2 py-2">الحالة</th>
+                        <th class="border px-2 py-2">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="groups-tbody">
+                    @forelse($resultGroups as $rg)
+                        <tr class="hover:bg-gray-50 group-row" data-archived="{{ $rg->archived ? '1' : '0' }}" data-id="{{ $rg->id }}">
+                            <td class="border px-2 py-2"><input type="checkbox" class="group-check" value="{{ $rg->id }}"></td>
+                            <td class="border px-2 py-2 font-bold">{{ $rg->grade_name }}</td>
+                            <td class="border px-2 py-2">{{ $rg->term }}</td>
+                            <td class="border px-2 py-2 num-en">{{ $rg->studentScores()->count() }}</td>
+                            <td class="border px-2 py-2">
+                                @if($rg->archived)
+                                    <span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold">مؤرشفة</span>
+                                @else
+                                    <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">نشطة</span>
+                                @endif
                             </td>
-                            <td class="p-3"><span class="bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded border border-blue-100">{{ $res['term'] }}</span></td>
-                            <td class="p-3 font-bold font-mono text-gray-900">{{ $res['studentCount'] }} طالب معتمد</td>
-                            <td class="p-3 flex items-center justify-center">
-                                <form action="?view=results" method="POST" class="inline" onsubmit="return confirm('هل أنت متأكد من حذف كشف الدرجات هذا بالكامل؟')">
-                                    @csrf
-                                    <input type="hidden" name="action" value="delete_result">
-                                    <input type="hidden" name="id" value="{{ $res['id'] }}">
-                                    <button type="submit" class="p-2 text-red-500 hover:bg-red-50 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                </form>
+                            <td class="border px-2 py-2 whitespace-nowrap">
+                                <button onclick="viewGroup({{ $rg->id }})" class="text-blue-500 hover:underline text-[11px]">👁️ عرض</button>
+                                @if($rg->archived)
+                                    <button onclick="unarchiveGroup({{ $rg->id }})" class="text-green-500 hover:underline text-[11px]">♻️ استعادة</button>
+                                @else
+                                    <button onclick="archiveGroup({{ $rg->id }})" class="text-amber-500 hover:underline text-[11px]">📦 أرشفة</button>
+                                @endif
+                                <button onclick="deleteGroup({{ $rg->id }})" class="text-red-500 hover:underline text-[11px]">🗑️ حذف</button>
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr><td colspan="6" class="border px-2 py-4 text-center text-gray-400">لا توجد مجموعات نتائج</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- جدول النتائج المحفوظة --}}
+    <div id="saved-section" class="bg-white rounded-2xl border p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-sm text-gray-700">📊 تفاصيل النتائج</h3>
+            <span id="current-group-name" class="text-gray-400 text-xs"></span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-xs">
+                <thead>
+                    <tr class="bg-red-700 text-white">
+                        <th class="border px-2 py-2">#</th>
+                        <th class="border px-2 py-2">رقم الجلوس</th>
+                        <th class="border px-2 py-2">اسم الطالب</th>
+                        <th class="border px-2 py-2">عربي</th>
+                        <th class="border px-2 py-2">إنجليزي</th>
+                        <th class="border px-2 py-2">اجتماعيات</th>
+                        <th class="border px-2 py-2">جبر</th>
+                        <th class="border px-2 py-2">هندسة</th>
+                        <th class="border px-2 py-2 bg-blue-700">رياضيات</th>
+                        <th class="border px-2 py-2">علوم</th>
+                        <th class="border px-2 py-2 bg-amber-600">المجموع</th>
+                        <th class="border px-2 py-2 bg-gray-500">دين</th>
+                        <th class="border px-2 py-2 bg-gray-500">فنية</th>
+                        <th class="border px-2 py-2 bg-gray-500">حاسب</th>
+                        <th class="border px-2 py-2">إجراء</th>
+                    </tr>
+                </thead>
+                <tbody id="saved-tbody">
+                    <tr><td colspan="15" class="border px-2 py-4 text-center text-gray-400">اضغط 👁️ عرض على أي مجموعة لعرض تفاصيلها</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
+{{-- نافذة تعديل المعاينة --}}
+<div class="modal fade" id="editPreviewModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title text-sm font-bold">تعديل بيانات الطالب</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body text-xs">
+                <input type="hidden" id="edit_preview_index">
+                <div class="row g-2">
+                    <div class="col-4"><label class="form-label text-[11px] font-bold">رقم الجلوس</label><input type="text" class="form-control form-control-sm" id="edit_preview_seatNumber"></div>
+                    <div class="col-8"><label class="form-label text-[11px] font-bold">اسم الطالب</label><input type="text" class="form-control form-control-sm" id="edit_preview_studentName"></div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">عربي</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_arabic" oninput="calcTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">إنجليزي</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_english" oninput="calcTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">اجتماعيات</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_social_studies" oninput="calcTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">علوم</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_science" oninput="calcTotal()"></div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">جبر</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_algebra" oninput="calcTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">هندسة</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_geometry" oninput="calcTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold bg-blue-100 rounded px-1">رياضيات</label><input type="text" class="form-control form-control-sm bg-blue-50 font-bold" id="edit_preview_math" readonly></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold bg-amber-100 rounded px-1">المجموع</label><input type="text" class="form-control form-control-sm bg-amber-50 font-bold" id="edit_preview_total" readonly></div>
+                </div>
+                <hr class="my-2">
+                <div class="row g-2">
+                    <div class="col-4"><label class="form-label text-[11px] text-gray-400">دين (لا يضاف)</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_religion"></div>
+                    <div class="col-4"><label class="form-label text-[11px] text-gray-400">فنية (لا يضاف)</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_art"></div>
+                    <div class="col-4"><label class="form-label text-[11px] text-gray-400">حاسب (لا يضاف)</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_preview_computer"></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">إلغاء</button><button type="button" class="btn btn-sm btn-primary" onclick="submitPreviewEdit()">حفظ</button></div>
+        </div>
+    </div>
+</div>
+
+{{-- نافذة تعديل المحفوظ --}}
+<div class="modal fade" id="editSavedModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title text-sm font-bold">تعديل نتيجة محفوظة</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body text-xs">
+                <input type="hidden" id="edit_saved_id">
+                <div class="row g-2">
+                    <div class="col-4"><label class="form-label text-[11px] font-bold">رقم الجلوس</label><input type="text" class="form-control form-control-sm" id="edit_saved_seatNumber"></div>
+                    <div class="col-8"><label class="form-label text-[11px] font-bold">اسم الطالب</label><input type="text" class="form-control form-control-sm" id="edit_saved_studentName"></div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">عربي</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_arabic" oninput="calcSavedTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">إنجليزي</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_english" oninput="calcSavedTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">اجتماعيات</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_social_studies" oninput="calcSavedTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">علوم</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_science" oninput="calcSavedTotal()"></div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">جبر</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_algebra" oninput="calcSavedTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold">هندسة</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_geometry" oninput="calcSavedTotal()"></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold bg-blue-100 rounded px-1">رياضيات</label><input type="text" class="form-control form-control-sm bg-blue-50 font-bold" id="edit_saved_math" readonly></div>
+                    <div class="col-3"><label class="form-label text-[11px] font-bold bg-amber-100 rounded px-1">المجموع</label><input type="text" class="form-control form-control-sm bg-amber-50 font-bold" id="edit_saved_total" readonly></div>
+                </div>
+                <hr class="my-2">
+                <div class="row g-2">
+                    <div class="col-4"><label class="form-label text-[11px] text-gray-400">دين (لا يضاف)</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_religion"></div>
+                    <div class="col-4"><label class="form-label text-[11px] text-gray-400">فنية (لا يضاف)</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_art"></div>
+                    <div class="col-4"><label class="form-label text-[11px] text-gray-400">حاسب (لا يضاف)</label><input type="number" step="0.5" class="form-control form-control-sm" id="edit_saved_computer"></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">إلغاء</button><button type="button" class="btn btn-sm btn-primary" onclick="submitSavedEdit()">حفظ</button></div>
+        </div>
+    </div>
+</div>
+
 <script>
-    function switchSheetTab(sheetHash, buttonEl) {
-        document.querySelectorAll('.sheet-content-panel').forEach(panel => panel.classList.add('hidden'));
-        document.querySelectorAll('.sheet-tab-btn').forEach(btn => {
-            btn.classList.remove('border-[#610000]', 'text-[#610000]', 'bg-red-50/40', 'rounded-t-lg');
-            btn.classList.add('border-transparent', 'text-gray-500');
-        });
-        document.getElementById('sheet-container-' + sheetHash).classList.remove('hidden');
-        buttonEl.classList.add('border-[#610000]', 'text-[#610000]', 'bg-red-50/40', 'rounded-t-lg');
-        if(typeof lucide !== 'undefined') lucide.createIcons();
+    let previewStudents = [];
+    let currentResultId = null;
+    const tenantSlug = '{{ $tenant ?? "" }}';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    function calcTotal() {
+        const a = parseFloat(document.getElementById('edit_preview_arabic').value) || 0;
+        const e = parseFloat(document.getElementById('edit_preview_english').value) || 0;
+        const s = parseFloat(document.getElementById('edit_preview_social_studies').value) || 0;
+        const al = parseFloat(document.getElementById('edit_preview_algebra').value) || 0;
+        const g = parseFloat(document.getElementById('edit_preview_geometry').value) || 0;
+        const sc = parseFloat(document.getElementById('edit_preview_science').value) || 0;
+        document.getElementById('edit_preview_math').value = al + g;
+        document.getElementById('edit_preview_total').value = a + e + s + al + g + sc;
     }
 
-    function calculateInlineRowTotal(inputElement) {
-        const row = inputElement.closest('tr');
-        const arabic   = parseFloat(row.querySelector('input[name="arabic"]').value) || 0;
-        const english  = parseFloat(row.querySelector('input[name="english"]').value) || 0;
-        const social   = parseFloat(row.querySelector('input[name="socialStudies"]').value) || 0;
-        const math     = parseFloat(row.querySelector('input[name="math"]').value) || 0;
-        const science  = parseFloat(row.querySelector('input[name="science"]').value) || 0;
-        
-        const grandTotal = arabic + english + social + math + science;
-        row.querySelector('input[name="total"]').value = grandTotal.toFixed(1);
+    function calcSavedTotal() {
+        const a = parseFloat(document.getElementById('edit_saved_arabic').value) || 0;
+        const e = parseFloat(document.getElementById('edit_saved_english').value) || 0;
+        const s = parseFloat(document.getElementById('edit_saved_social_studies').value) || 0;
+        const al = parseFloat(document.getElementById('edit_saved_algebra').value) || 0;
+        const g = parseFloat(document.getElementById('edit_saved_geometry').value) || 0;
+        const sc = parseFloat(document.getElementById('edit_saved_science').value) || 0;
+        document.getElementById('edit_saved_math').value = al + g;
+        document.getElementById('edit_saved_total').value = a + e + s + al + g + sc;
     }
+
+    function renderPreviewTable() {
+        const tbody = document.getElementById('preview-tbody');
+        if (!previewStudents || previewStudents.length === 0) { document.getElementById('preview-section').style.display = 'none'; return; }
+        document.getElementById('preview-section').style.display = 'block';
+        let html = '';
+        previewStudents.forEach((s, i) => {
+            const al = parseFloat(s.algebra) || 0, g = parseFloat(s.geometry) || 0, math = al + g;
+            html += `<tr class="hover:bg-gray-50">
+                <td class="border px-2 py-1">${i+1}</td>
+                <td class="border px-2 py-1 num-en">${s.seatNumber||''}</td>
+                <td class="border px-2 py-1">${s.studentName||''}</td>
+                <td class="border px-2 py-1 num-en">${s.arabic??'-'}</td>
+                <td class="border px-2 py-1 num-en">${s.english??'-'}</td>
+                <td class="border px-2 py-1 num-en">${s.social_studies??'-'}</td>
+                <td class="border px-2 py-1 num-en">${s.algebra??'-'}</td>
+                <td class="border px-2 py-1 num-en">${s.geometry??'-'}</td>
+                <td class="border px-2 py-1 num-en bg-blue-50 font-bold">${math||'-'}</td>
+                <td class="border px-2 py-1 num-en">${s.science??'-'}</td>
+                <td class="border px-2 py-1 num-en bg-amber-50 font-bold">${s.total??'-'}</td>
+                <td class="border px-2 py-1 num-en text-gray-400">${s.religion??'-'}</td>
+                <td class="border px-2 py-1 num-en text-gray-400">${s.art??'-'}</td>
+                <td class="border px-2 py-1 num-en text-gray-400">${s.computer??'-'}</td>
+                <td class="border px-2 py-1"><button onclick="editPreviewStudent(${i})" class="text-blue-500">✏️</button></td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function editPreviewStudent(index) {
+        const s = previewStudents[index];
+        document.getElementById('edit_preview_index').value = index;
+        document.getElementById('edit_preview_seatNumber').value = s.seatNumber||'';
+        document.getElementById('edit_preview_studentName').value = s.studentName||'';
+        document.getElementById('edit_preview_arabic').value = s.arabic??'';
+        document.getElementById('edit_preview_english').value = s.english??'';
+        document.getElementById('edit_preview_social_studies').value = s.social_studies??'';
+        document.getElementById('edit_preview_algebra').value = s.algebra??'';
+        document.getElementById('edit_preview_geometry').value = s.geometry??'';
+        document.getElementById('edit_preview_science').value = s.science??'';
+        document.getElementById('edit_preview_religion').value = s.religion??'';
+        document.getElementById('edit_preview_art').value = s.art??'';
+        document.getElementById('edit_preview_computer').value = s.computer??'';
+        calcTotal();
+        new bootstrap.Modal(document.getElementById('editPreviewModal')).show();
+    }
+
+    function submitPreviewEdit() {
+        const index = document.getElementById('edit_preview_index').value;
+        const al = parseFloat(document.getElementById('edit_preview_algebra').value)||0;
+        const g = parseFloat(document.getElementById('edit_preview_geometry').value)||0;
+        const a = parseFloat(document.getElementById('edit_preview_arabic').value)||0;
+        const e = parseFloat(document.getElementById('edit_preview_english').value)||0;
+        const s = parseFloat(document.getElementById('edit_preview_social_studies').value)||0;
+        const sc = parseFloat(document.getElementById('edit_preview_science').value)||0;
+        previewStudents[index] = {
+            seatNumber: document.getElementById('edit_preview_seatNumber').value,
+            studentName: document.getElementById('edit_preview_studentName').value,
+            arabic: a, english: e, social_studies: s, algebra: al, geometry: g, math: al+g,
+            science: sc, religion: document.getElementById('edit_preview_religion').value,
+            art: document.getElementById('edit_preview_art').value, computer: document.getElementById('edit_preview_computer').value,
+            total: a+e+s+al+g+sc,
+        };
+        renderPreviewTable();
+        bootstrap.Modal.getInstance(document.getElementById('editPreviewModal')).hide();
+    }
+
+    function saveResults() {
+        if (!confirm('حفظ جميع النتائج؟')) return;
+        fetch(`/${tenantSlug}/admin/results/save`, {
+            method: 'POST',
+            headers: {'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+        }).then(r => r.json()).then(data => {
+            if (data.success) { alert(data.message); location.reload(); }
+            else { alert(data.error || 'خطأ'); }
+        });
+    }
+
+    function clearPreview() { previewStudents = []; document.getElementById('preview-section').style.display = 'none'; }
+
+    // عرض مجموعة نتائج
+    function viewGroup(resultId) {
+        currentResultId = resultId;
+        fetch(`/${tenantSlug}/admin/results/list?result_id=${resultId}`)
+            .then(r => r.json()).then(data => {
+                const tbody = document.getElementById('saved-tbody');
+                if (!data.results || data.results.length === 0) { tbody.innerHTML = '<tr><td colspan="15" class="border px-2 py-4 text-center text-gray-400">لا توجد نتائج</td></tr>'; return; }
+                document.getElementById('current-group-name').textContent = data.results[0]?.student_name ? '' : '';
+                let html = '';
+                data.results.forEach((s, i) => {
+                    const al = parseFloat(s.algebra)||0, g = parseFloat(s.geometry)||0;
+                    const math = parseFloat(s.math)||(al+g);
+                    html += `<tr class="hover:bg-gray-50">
+                        <td class="border px-2 py-1">${i+1}</td>
+                        <td class="border px-2 py-1 num-en">${s.seat_number||''}</td>
+                        <td class="border px-2 py-1">${s.student_name||''}</td>
+                        <td class="border px-2 py-1 num-en">${s.arabic??'-'}</td>
+                        <td class="border px-2 py-1 num-en">${s.english??'-'}</td>
+                        <td class="border px-2 py-1 num-en">${s.social_studies??'-'}</td>
+                        <td class="border px-2 py-1 num-en">${s.algebra??'-'}</td>
+                        <td class="border px-2 py-1 num-en">${s.geometry??'-'}</td>
+                        <td class="border px-2 py-1 num-en bg-blue-50 font-bold">${math||'-'}</td>
+                        <td class="border px-2 py-1 num-en">${s.science??'-'}</td>
+                        <td class="border px-2 py-1 num-en bg-amber-50 font-bold">${s.total??'-'}</td>
+                        <td class="border px-2 py-1 num-en text-gray-400">${s.religion??'-'}</td>
+                        <td class="border px-2 py-1 num-en text-gray-400">${s.art??'-'}</td>
+                        <td class="border px-2 py-1 num-en text-gray-400">${s.computer??'-'}</td>
+                        <td class="border px-2 py-1 whitespace-nowrap">
+                            <button onclick="editSavedStudent(${s.id})" class="text-blue-500">✏️</button>
+                            <button onclick="deleteScore(${s.id})" class="text-red-500">🗑️</button>
+                        </td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+            });
+    }
+
+    function editSavedStudent(id) {
+        fetch(`/${tenantSlug}/admin/results/list?result_id=${currentResultId}`)
+            .then(r => r.json()).then(data => {
+                const s = data.results.find(r => r.id == id);
+                if (!s) return;
+                document.getElementById('edit_saved_id').value = s.id;
+                document.getElementById('edit_saved_seatNumber').value = s.seat_number||'';
+                document.getElementById('edit_saved_studentName').value = s.student_name||'';
+                document.getElementById('edit_saved_arabic').value = s.arabic??'';
+                document.getElementById('edit_saved_english').value = s.english??'';
+                document.getElementById('edit_saved_social_studies').value = s.social_studies??'';
+                document.getElementById('edit_saved_algebra').value = s.algebra??'';
+                document.getElementById('edit_saved_geometry').value = s.geometry??'';
+                document.getElementById('edit_saved_science').value = s.science??'';
+                document.getElementById('edit_saved_religion').value = s.religion??'';
+                document.getElementById('edit_saved_art').value = s.art??'';
+                document.getElementById('edit_saved_computer').value = s.computer??'';
+                calcSavedTotal();
+                new bootstrap.Modal(document.getElementById('editSavedModal')).show();
+            });
+    }
+
+    function submitSavedEdit() {
+        const id = document.getElementById('edit_saved_id').value;
+        fetch(`/${tenantSlug}/admin/results/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+            body: JSON.stringify({
+                seatNumber: document.getElementById('edit_saved_seatNumber').value,
+                studentName: document.getElementById('edit_saved_studentName').value,
+                arabic: document.getElementById('edit_saved_arabic').value,
+                english: document.getElementById('edit_saved_english').value,
+                social_studies: document.getElementById('edit_saved_social_studies').value,
+                algebra: document.getElementById('edit_saved_algebra').value,
+                geometry: document.getElementById('edit_saved_geometry').value,
+                science: document.getElementById('edit_saved_science').value,
+                religion: document.getElementById('edit_saved_religion').value,
+                art: document.getElementById('edit_saved_art').value,
+                computer: document.getElementById('edit_saved_computer').value,
+            }),
+        }).then(r => r.json()).then(data => { if (data.success) { viewGroup(currentResultId); bootstrap.Modal.getInstance(document.getElementById('editSavedModal')).hide(); } });
+    }
+
+    function deleteScore(id) {
+        if (!confirm('حذف نتيجة هذا الطالب؟')) return;
+        fetch(`/${tenantSlug}/admin/results/${id}`, {
+            method: 'DELETE', headers: {'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+        }).then(r => r.json()).then(data => { if (data.success) viewGroup(currentResultId); });
+    }
+
+    // ========== الأرشفة والاستعادة ==========
+    function archiveGroup(id) {
+        if (!confirm('أرشفة هذه المجموعة؟')) return;
+        fetch(`/${tenantSlug}/admin/results/${id}/archive`, {
+            method: 'POST', headers: {'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+        }).then(r => r.json()).then(data => { if (data.success) location.reload(); });
+    }
+
+    function unarchiveGroup(id) {
+        if (!confirm('استعادة هذه المجموعة من الأرشيف؟')) return;
+        fetch(`/${tenantSlug}/admin/results/${id}/unarchive`, {
+            method: 'POST', headers: {'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+        }).then(r => r.json()).then(data => { if (data.success) location.reload(); });
+    }
+
+    function deleteGroup(id) {
+        if (!confirm('⚠️ حذف نهائي! سيتم حذف جميع درجات الطلاب. متأكد؟')) return;
+        fetch(`/${tenantSlug}/admin/results-group/${id}`, {
+            method: 'DELETE', headers: {'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+        }).then(r => r.json()).then(data => { if (data.success) location.reload(); });
+    }
+
+    // ========== تحديد الكل والعمليات الجماعية ==========
+    function toggleSelectAll() {
+        const checked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.group-check').forEach(cb => cb.checked = checked);
+    }
+
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.group-check:checked')).map(cb => cb.value);
+    }
+
+    function bulkAction(action) {
+        const ids = getSelectedIds();
+        if (ids.length === 0) { alert('اختر مجموعة واحدة على الأقل'); return; }
+        const msgs = {archive: 'أرشفة', unarchive: 'استعادة', delete: 'حذف نهائي'};
+        const warning = action === 'delete' ? '⚠️ سيتم حذف جميع البيانات!' : '';
+        if (!confirm(`${warning}هل تريد ${msgs[action]} ${ids.length} مجموعة؟`)) return;
+
+        fetch(`/${tenantSlug}/admin/results/bulk`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json'},
+            body: JSON.stringify({action, ids}),
+        }).then(r => r.json()).then(data => { if (data.success) location.reload(); else alert(data.error || 'خطأ'); });
+    }
+
+    // ========== فلتر الأرشفة ==========
+    function filterGroups(type) {
+        document.querySelectorAll('.group-row').forEach(row => {
+            const archived = row.dataset.archived === '1';
+            if (type === 'all') row.style.display = '';
+            else if (type === 'active') row.style.display = archived ? 'none' : '';
+            else if (type === 'archived') row.style.display = archived ? '' : 'none';
+        });
+        document.querySelectorAll('#filter-all, #filter-active, #filter-archived').forEach(b => { b.className = 'border rounded-lg px-3 py-1 text-xs font-bold hover:bg-gray-50'; });
+        document.getElementById('filter-' + type).className = 'border rounded-lg px-3 py-1 text-xs font-bold bg-gray-800 text-white';
+    }
+
+    // تحميل المعاينة بعد رفع ناجح
+    @if(session('success'))
+        fetch(`/${tenantSlug}/admin/results/preview`)
+            .then(r => r.json()).then(data => {
+                if (data.students && data.students.length > 0) { previewStudents = data.students; renderPreviewTable(); }
+            });
+    @endif
 </script>

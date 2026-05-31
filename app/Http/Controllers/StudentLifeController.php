@@ -34,7 +34,7 @@ class StudentLifeController extends Controller
             ]
         ]);
 
-        // 2. تجميع الروابط التعليمية الخارجية المعتمدة (بما فيها بنك المعرفة وخان أكاديمي)
+        // 2. تجميع الروابط التعليمية الخارجية المعتمدة
         $educationalLinks = [
             [
                 'title' => 'بنك المعرفة المصري (EKB)',
@@ -49,13 +49,24 @@ class StudentLifeController extends Controller
                 'icon' => 'video'
             ]
         ];
-// 📌 1. إضافة بيانات متغير التحفيز المطلوب بداخل الفيو الأصلي الخاص بك
-    $motivation = [
-        'text' => 'النجاح ليس بمقدار الأعمال التي تنجزها، بل بمقدار الإصرار والتحدي الذي تواجه به الصعاب يومياً.',
-        'author' => 'إدارة الكنترول والمدرسة الذكية'
-    ];
 
-    // 📌 2. تمرير المتغير الجديد $motivation صراحةً داخل دالة الـ compact لتأمين الفيو
-    return view('student.life', compact('tenant', 'activities', 'educationalLinks', 'motivation'));
-}    
+        // 3. نص تحفيزي يومي
+        $motivation = [
+            'text' => 'النجاح ليس بمقدار الأعمال التي تنجزها، بل بمقدار الإصرار والتحدي الذي تواجه به الصعاب يومياً.',
+            'author' => 'إدارة الكنترول والمدرسة الذكية'
+        ];
+
+        return view('student.life', compact('tenant', 'activities', 'educationalLinks', 'motivation'));
     }
+
+    /**
+     * معالجة رسائل الشات بوت التعليمي
+     */
+    public function chat(Request $request, $tenant)
+    {
+        // سيتم تطوير هذه الدالة لاحقاً مع دمج AI
+        return response()->json([
+            'reply' => 'مرحباً! هذه الخدمة قيد التطوير حالياً.'
+        ]);
+    }
+}
